@@ -1,0 +1,5 @@
+type: break
+break:
+  description: 'Break: remove retrofit support, remove dependency on okhttp'
+  links:
+  - https://github.com/palantir/conjure-java-runtime/pull/1853
