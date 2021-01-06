@@ -29,7 +29,6 @@ dependencies {
     implementation "com.palantir.tracing:tracing-okhttp3"
     implementation "org.slf4j:slf4j-api"
 
-    testImplementation project(":conjure-java-retrofit2-client")
     testImplementation project(":conjure-java-jersey-server")
     testImplementation project(':keystores')
     testImplementation "com.netflix.feign:feign-jackson"
