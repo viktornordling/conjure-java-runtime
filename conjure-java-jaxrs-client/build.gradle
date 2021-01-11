@@ -4,6 +4,7 @@ apply plugin: 'com.palantir.revapi'
 dependencies {
     api project(":extras:refresh-utils")
     api project(":client-config")
+    api project(":conjure-java-legacy-clients")
     api "com.google.code.findbugs:jsr305"
     api "javax.ws.rs:javax.ws.rs-api"
     // TODO(dsanduleac): Should be implementation, but can't because we expose feign.TextDelegateEncoder
