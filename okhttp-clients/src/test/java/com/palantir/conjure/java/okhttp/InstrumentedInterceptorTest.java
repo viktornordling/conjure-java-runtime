@@ -24,7 +24,6 @@ import com.codahale.metrics.Timer;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.Collection;
@@ -33,13 +32,16 @@ import okhttp3.Interceptor;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public final class InstrumentedInterceptorTest {
 
     private static final int PORT = 8080;
@@ -58,7 +60,7 @@ public final class InstrumentedInterceptorTest {
     private InstrumentedInterceptor interceptor;
     private HostMetricsRegistry hostMetrics;
 
-    @Before
+    @BeforeEach
     public void before() {
         registry = new DefaultTaggedMetricRegistry();
         hostMetrics = new HostMetricsRegistry();
@@ -82,13 +84,7 @@ public final class InstrumentedInterceptorTest {
 
     @Test
     public void testResponseMetricRegistered() throws IOException {
-        MetricName name = MetricName.builder()
-                .safeName("client.response")
-                .putSafeTags("service-name", "client")
-                .putSafeTags("libraryName", "conjure-java-runtime")
-                .putSafeTags("libraryVersion", "unknown")
-                .build();
-        Timer timer = registry.timer(name);
+        Timer timer = ClientMetrics.of(registry).response("client");
 
         assertThat(timer.getCount()).isZero();
 

@@ -24,30 +24,34 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.jaxrs.ExtensionsWrapper.BeforeAndAfter;
 import com.palantir.conjure.java.okhttp.HostMetricsRegistry;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public final class JaxRsClientStackTraceTest extends TestBase {
 
-    @Rule
-    public final MockWebServer server1 = new MockWebServer();
+    @RegisterExtension
+    public final BeforeAndAfter<MockWebServer> server1Resource = ExtensionsWrapper.toExtension(new MockWebServer());
 
     private TestService proxy;
 
-    @Before
+    MockWebServer server1;
+
+    @BeforeEach
     public void before() throws Exception {
+        this.server1 = server1Resource.getResource();
         proxy = JaxRsClient.create(
                 TestService.class,
                 AGENT,
                 new HostMetricsRegistry(),
                 ClientConfiguration.builder()
                         .from(createTestConfig("http://localhost:" + server1.getPort()))
-                        .maxNumRetries(1)
+                        .maxNumRetries(0)
                         .build());
     }
 
@@ -81,10 +85,10 @@ public final class JaxRsClientStackTraceTest extends TestBase {
     }
 
     private static MockResponse serializableError() throws JsonProcessingException {
-        String json = ObjectMappers.newServerObjectMapper()
-                .writeValueAsString(SerializableError.forException(new ServiceException(ErrorType.INTERNAL)));
+        String json = ObjectMappers.newServerJsonMapper()
+                .writeValueAsString(SerializableError.forException(new ServiceException(ErrorType.INVALID_ARGUMENT)));
         return new MockResponse()
-                .setResponseCode(500)
+                .setResponseCode(400)
                 .setHeader("Content-Type", "application/json")
                 .setBody(json);
     }

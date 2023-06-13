@@ -18,15 +18,15 @@ package com.palantir.conjure.java.config.ssl;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import java.io.IOException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class SerializationTests {
 
-    private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
+    private static final JsonMapper MAPPER = ObjectMappers.newClientJsonMapper();
 
     @Test
     public void testJsonSerDe() throws IOException {

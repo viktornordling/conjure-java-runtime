@@ -35,10 +35,9 @@ import java.net.URI;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 import javax.net.ssl.SSLSocketFactory;
 import javax.net.ssl.X509TrustManager;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class ClientConfigurationsTest {
 
@@ -54,7 +53,7 @@ public final class ClientConfigurationsTest {
 
         assertThat(actual.sslSocketFactory()).isNotNull();
         assertThat(actual.trustManager()).isNotNull();
-        assertThat(actual.uris()).isEqualTo(uris);
+        assertThat(actual.uris()).containsExactlyElementsOf(uris);
         assertThat(actual.connectTimeout()).isEqualTo(Duration.ofSeconds(10));
         assertThat(actual.readTimeout()).isEqualTo(Duration.ofMinutes(5));
         assertThat(actual.writeTimeout()).isEqualTo(Duration.ofMinutes(5));
@@ -73,7 +72,7 @@ public final class ClientConfigurationsTest {
 
         assertThat(actual.sslSocketFactory()).isEqualTo(sslFactory);
         assertThat(actual.trustManager()).isEqualTo(trustManager);
-        assertThat(actual.uris()).isEqualTo(uris);
+        assertThat(actual.uris()).containsExactlyElementsOf(uris);
         assertThat(actual.connectTimeout()).isEqualTo(Duration.ofSeconds(10));
         assertThat(actual.readTimeout()).isEqualTo(Duration.ofMinutes(5));
         assertThat(actual.writeTimeout()).isEqualTo(Duration.ofMinutes(5));
@@ -101,7 +100,7 @@ public final class ClientConfigurationsTest {
                 .hasMessage("If meshProxy is configured then maxNumRetries must be 0");
 
         ClientConfiguration validConfig = ClientConfigurations.of(meshProxyServiceConfig(uris, 0));
-        assertThat(validConfig.meshProxy()).isEqualTo(Optional.of(HostAndPort.fromParts("localhost", 1234)));
+        assertThat(validConfig.meshProxy()).contains(HostAndPort.fromParts("localhost", 1234));
         assertThat(validConfig.maxNumRetries()).isZero();
     }
 
@@ -159,6 +158,27 @@ public final class ClientConfigurationsTest {
                 .isInstanceOfSatisfying(InetSocketAddress.class, address -> assertThat(address.getAddress())
                         .as("The address must not be resolved")
                         .isNull()));
+    }
+
+    @Test
+    public void socksProxy() {
+        String uri = "https://localhost:8080";
+        ProxySelector selector = ClientConfigurations.of(ServiceConfiguration.builder()
+                        .addUris(uri)
+                        .security(SslConfiguration.of(Paths.get("src/test/resources/trustStore.jks")))
+                        .proxy(ProxyConfiguration.socks("localhost:1234"))
+                        .maxNumRetries(1)
+                        .build())
+                .proxy();
+
+        List<Proxy> proxies = selector.select(URI.create(uri));
+        assertThat(proxies).hasSize(1).allSatisfy(proxy -> {
+            assertThat(proxy.type()).isEqualTo(Proxy.Type.SOCKS);
+            assertThat(proxy.address()).isInstanceOfSatisfying(InetSocketAddress.class, address -> {
+                assertThat(address.getHostString()).isEqualTo("localhost");
+                assertThat(address.getPort()).isEqualTo(1234);
+            });
+        });
     }
 
     private ServiceConfiguration meshProxyServiceConfig(List<String> theUris, int maxNumRetries) {

@@ -17,36 +17,33 @@
 package com.palantir.conjure.java.client.jaxrs.feignimpl;
 
 import com.google.common.collect.ImmutableMap;
-import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.conjure.java.server.jersey.ConjureJerseyFeature;
+import com.palantir.undertest.UndertowServerExtension;
 import feign.Util;
-import io.dropwizard.Application;
-import io.dropwizard.Configuration;
-import io.dropwizard.jersey.jackson.JacksonMessageBodyProvider;
-import io.dropwizard.setup.Environment;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.MediaType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.ForbiddenException;
-import javax.ws.rs.GET;
-import javax.ws.rs.NotAuthorizedException;
-import javax.ws.rs.NotFoundException;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
-import javax.ws.rs.QueryParam;
-import javax.ws.rs.core.MediaType;
 import org.assertj.core.util.Strings;
 
-public class GuavaTestServer extends Application<Configuration> {
-    @Override
-    public final void run(Configuration _config, final Environment env) throws Exception {
-        env.jersey().register(ConjureJerseyFeature.INSTANCE);
-        env.jersey().register(new JacksonMessageBodyProvider(ObjectMappers.newServerObjectMapper()));
-        env.jersey().register(new TestResource());
+public final class GuavaTestServer {
+    private GuavaTestServer() {}
+
+    public static UndertowServerExtension createUndertow() {
+        return UndertowServerExtension.create()
+                .jersey(ConjureJerseyFeature.INSTANCE)
+                .jersey(new GuavaTestServer.TestResource());
     }
 
     static class TestResource implements TestService {

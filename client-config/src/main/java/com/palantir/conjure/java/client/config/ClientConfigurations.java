@@ -22,7 +22,9 @@ import com.google.common.net.HostAndPort;
 import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.conjure.java.config.ssl.TrustContext;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -75,9 +77,19 @@ public final class ClientConfigurations {
      * empty/absent configuration with the defaults specified as constants in this class.
      */
     public static ClientConfiguration of(ServiceConfiguration config) {
+        return ClientConfigurations.of(config, SslSocketFactories::createTrustContext);
+    }
+
+    /**
+     * Creates a new {@link ClientConfiguration} instance from the given {@link ServiceConfiguration} and
+     * {@link TrustContextFactory}, filling in empty/absent configuration with the defaults specified as constants
+     * in this class.
+     */
+    public static ClientConfiguration of(ServiceConfiguration config, TrustContextFactory factory) {
+        TrustContext trustContext = factory.create(config.security());
         return ClientConfiguration.builder()
-                .sslSocketFactory(SslSocketFactories.createSslSocketFactory(config.security()))
-                .trustManager(SslSocketFactories.createX509TrustManager(config.security()))
+                .sslSocketFactory(trustContext.sslSocketFactory())
+                .trustManager(trustContext.x509TrustManager())
                 .uris(config.uris())
                 .connectTimeout(config.connectTimeout().orElse(DEFAULT_CONNECT_TIMEOUT))
                 .readTimeout(config.readTimeout().orElse(DEFAULT_READ_TIMEOUT))
@@ -174,6 +186,16 @@ public final class ClientConfigurations {
                 return fixedProxySelectorFor(new Proxy(Proxy.Type.HTTP, addr));
             case MESH:
                 return ProxySelector.getDefault(); // MESH proxy is not a Java proxy
+            case SOCKS:
+                HostAndPort socksHostAndPort = HostAndPort.fromString(proxyConfig
+                        .hostAndPort()
+                        .orElseThrow(() -> new SafeIllegalArgumentException(
+                                "Expected to find proxy hostAndPort configuration for SOCKS proxy")));
+                InetSocketAddress socksAddress =
+                        // Proxy address must not be resolved, otherwise DNS changes while the application
+                        // is running are ignored by the application.
+                        InetSocketAddress.createUnresolved(socksHostAndPort.getHost(), socksHostAndPort.getPort());
+                return fixedProxySelectorFor(new Proxy(Proxy.Type.SOCKS, socksAddress));
             default:
                 // fall through
         }
@@ -235,5 +257,13 @@ public final class ClientConfigurations {
         public String toString() {
             return "FixedProxySelector{proxy=" + proxy + '}';
         }
+    }
+
+    /**
+     * A factory for {@link TrustContext} which allows to define how one will be created,
+     * based on implementer defined security configurations. See {@link SslConfiguration}.
+     */
+    public interface TrustContextFactory {
+        TrustContext create(SslConfiguration configuration);
     }
 }

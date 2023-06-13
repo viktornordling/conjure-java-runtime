@@ -29,6 +29,8 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.security.Provider;
+import java.util.Optional;
 import java.util.UUID;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
@@ -36,19 +38,17 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLServerSocketFactory;
 import javax.net.ssl.SSLSocketFactory;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.Timeout;
+import org.conscrypt.Conscrypt;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
+@Timeout(value = 5)
 public final class SslSocketFactoriesConnectionTests {
 
     private enum ClientAuth {
         WITH_CLIENT_AUTH,
         NO_CLIENT_AUTH,
     }
-
-    @Rule
-    public Timeout testTimeout = Timeout.seconds(5);
 
     @Test
     public void testSslNoClientAuthenticationJks() {
@@ -107,7 +107,7 @@ public final class SslSocketFactoriesConnectionTests {
                     fail("fail");
                 })
                 .isInstanceOf(RuntimeException.class)
-                .hasCauseInstanceOf(SSLHandshakeException.class)
+                .hasCauseInstanceOf(SSLException.class)
                 .hasMessageContaining("PKIX path building failed");
     }
 
@@ -241,38 +241,55 @@ public final class SslSocketFactoriesConnectionTests {
                 TestConstants.CLIENT_KEY_STORE_JKS_PATH,
                 TestConstants.CLIENT_KEY_STORE_JKS_PASSWORD);
 
-        assertThatThrownBy(() -> {
-                    runSslConnectionTest(serverConfig, clientConfig, ClientAuth.WITH_CLIENT_AUTH);
-                })
+        assertThatThrownBy(() -> runSslConnectionTest(serverConfig, clientConfig, ClientAuth.WITH_CLIENT_AUTH))
                 .isInstanceOfSatisfying(RuntimeException.class, ex -> {
-                    if (System.getProperty("java.version").startsWith("1.8")) {
-                        assertThat(ex)
-                                .hasCauseInstanceOf(SSLHandshakeException.class)
-                                .hasMessageContaining("bad_certificate");
-                    } else {
-                        assertThat(ex.getCause()).isInstanceOfAny(SSLException.class, SSLHandshakeException.class);
-                        assertThat(ex.getMessage())
-                                .satisfiesAnyOf(
-                                        message -> assertThat(message).contains("readHandshakeRecord"),
-                                        message -> assertThat(message).contains("certificate_unknown"));
-                    }
+                    assertThat(ex.getCause()).isInstanceOfAny(SSLException.class, SSLHandshakeException.class);
+                    assertThat(ex.getMessage())
+                            .satisfiesAnyOf(
+                                    message -> assertThat(message).contains("readHandshakeRecord"),
+                                    message -> assertThat(message).contains("certificate_unknown"),
+                                    message -> assertThat(message).contains("bad_certificate"));
                 });
     }
 
     private void runSslConnectionTest(
             SslConfiguration serverConfig, SslConfiguration clientConfig, ClientAuth clientAuth) {
+        runSslConnectionTest(serverConfig, clientConfig, clientAuth, Optional.empty(), Optional.empty());
+        // Don't allow these tests to be silently ignored in CI, however modern macbooks aren't currently supported.
+        if (Conscrypt.isAvailable() || System.getProperty("CI") != null) {
+            Provider conscrypt = Conscrypt.newProviderBuilder().build();
+            runSslConnectionTest(serverConfig, clientConfig, clientAuth, Optional.empty(), Optional.of(conscrypt));
+            runSslConnectionTest(serverConfig, clientConfig, clientAuth, Optional.of(conscrypt), Optional.empty());
+            runSslConnectionTest(
+                    serverConfig, clientConfig, clientAuth, Optional.of(conscrypt), Optional.of(conscrypt));
+        }
+    }
+
+    private void runSslConnectionTest(
+            SslConfiguration serverConfig,
+            SslConfiguration clientConfig,
+            ClientAuth clientAuth,
+            Optional<Provider> serverProvider,
+            Optional<Provider> clientProvider) {
         String message = UUID.randomUUID().toString();
 
-        SSLContext sslContext = SslSocketFactories.createSslContext(serverConfig);
+        SSLContext sslContext = serverProvider
+                .map(prov -> SslSocketFactories.createSslContext(serverConfig, prov))
+                .orElseGet(() -> SslSocketFactories.createSslContext(serverConfig));
         SSLServerSocketFactory factory = sslContext.getServerSocketFactory();
 
         try (SSLServerSocket sslServerSocket = (SSLServerSocket) factory.createServerSocket(0)) {
             Thread serverThread = createSslServerThread(sslServerSocket, clientAuth, message);
             serverThread.start();
-
-            SSLSocketFactory sslSocketFactory = SslSocketFactories.createSslSocketFactory(clientConfig);
-            verifySslConnection(sslSocketFactory, sslServerSocket.getLocalPort(), message);
-        } catch (IOException ex) {
+            try {
+                SSLSocketFactory sslSocketFactory = clientProvider
+                        .map(prov -> SslSocketFactories.createSslSocketFactory(clientConfig, prov))
+                        .orElseGet(() -> SslSocketFactories.createSslSocketFactory(clientConfig));
+                verifySslConnection(sslSocketFactory, sslServerSocket.getLocalPort(), message);
+            } finally {
+                serverThread.join();
+            }
+        } catch (IOException | InterruptedException ex) {
             Throwables.propagate(ex);
         }
     }

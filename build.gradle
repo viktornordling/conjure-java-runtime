@@ -1,19 +1,22 @@
 buildscript {
     repositories {
-        gradlePluginPortal()
-        mavenCentral()
+        mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
+        gradlePluginPortal() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
     }
 
     dependencies {
-        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.4.0'
-        classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.2.0'
-        classpath 'com.palantir.gradle.revapi:gradle-revapi:1.5.0'
+        classpath 'com.palantir.jakartapackagealignment:jakarta-package-alignment:0.5.0'
+        classpath 'com.palantir.gradle.jdks:gradle-jdks:0.32.0'
+        classpath 'com.palantir.gradle.jdkslatest:gradle-jdks-latest:0.8.0'
+        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.12.0'
+        classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.32.0'
+        classpath 'com.palantir.gradle.revapi:gradle-revapi:1.7.0'
         classpath 'com.netflix.nebula:gradle-dependency-lock-plugin:7.0.1'
-        classpath 'com.palantir.baseline:gradle-baseline-java:4.25.0'
-        classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
-        classpath 'com.palantir.metricschema:gradle-metric-schema:0.8.0'
-        classpath 'gradle.plugin.org.inferred:gradle-processors:3.6.0'
-        classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.0.0'
+        classpath 'com.palantir.baseline:gradle-baseline-java:5.7.0'
+        classpath 'com.palantir.gradle.gitversion:gradle-git-version:3.0.0'
+        classpath 'com.palantir.metricschema:gradle-metric-schema:0.20.0'
+        classpath 'gradle.plugin.org.inferred:gradle-processors:3.7.0'
+        classpath 'com.palantir.gradle.consistentversions:gradle-consistent-versions:2.12.0'
     }
 }
 
@@ -21,31 +24,41 @@ apply plugin: 'com.palantir.external-publish'
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'com.palantir.git-version'
 apply plugin: 'com.palantir.consistent-versions'
+apply plugin: 'com.palantir.baseline-java-versions'
+apply plugin: 'com.palantir.jdks.latest'
+
+javaVersions {
+    libraryTarget = 11
+    runtime = 17
+}
 
 version gitVersion()
 
 allprojects {
     apply plugin: 'com.palantir.java-format'
+    apply plugin: 'com.palantir.jakarta-package-alignment'
     version rootProject.version
     group 'com.palantir.conjure.java.runtime'
 
     repositories {
-        mavenCentral()
+        mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
     }
 
     configurations.all {
         resolutionStrategy {
             preferProjectModules()
         }
+
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'com.google.errorprone' && details.requested.name == 'error_prone_annotations') {
+                details.useTarget group: 'com.google.errorprone', name: 'error_prone_annotations', version: '2.7.1'
+                details.because "The error_prone_annotations dependency must be low to avoid forcing consumers to use newer releases"
+            }
+        }
     }
 
     dependencies {
         constraints {
-            rootConfiguration 'io.dropwizard.metrics:metrics-core', {
-                version { strictly '[3, 4[' }
-                because "Spark still uses 3.X, which can't co-exist with 4.X"
-            }
-
             rootConfiguration 'com.squareup.retrofit2:retrofit', {
                 version { strictly '2.4.0' }
                 because 'Retrofit 2.5.0 breaks with our path parameter routing logic'
@@ -57,12 +70,6 @@ allprojects {
             }
 
         }
-
-        modules {
-            module('javax.ws.rs:javax.ws.rs-api') {
-                replacedBy('jakarta.ws.rs:jakarta.ws.rs-api', 'Oracle have trademarks, Eclipse forced to rename https://waynebeaton.wordpress.com/2019/04/04/renaming-java-ee-specifications-for-jakarta-ee/')
-            }
-        }
     }
 }
 
@@ -70,8 +77,7 @@ subprojects {
     apply plugin: 'java-library'
     apply plugin: 'com.palantir.baseline-class-uniqueness'
 
-    sourceCompatibility = 11
-    tasks.check.dependsOn(javadoc)
+    tasks.check.dependsOn javadoc, checkUnusedDependencies
 
     test {
         minHeapSize = "512m"

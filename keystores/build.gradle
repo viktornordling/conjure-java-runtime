@@ -14,54 +14,26 @@ dependencies {
     implementation "com.github.ben-manes.caffeine:caffeine"
 
     testImplementation project(":conjure-java-jackson-serialization")
-    testImplementation("com.netflix.feign:feign-jaxrs") {
-        // the shipped version clashes with the newer javax.ws.rs:javax.ws.rs-api used by (e.g.) dropwizard
-        exclude group: "javax.ws.rs", module: "jsr311-api"
-    }
-    testImplementation("com.netflix.feign:feign-core")
-    testImplementation "com.netflix.feign:feign-okhttp"
-    testImplementation "com.squareup.okhttp3:okhttp"
     testImplementation "org.conscrypt:conscrypt-openjdk-uber"
-    testImplementation "org.hamcrest:hamcrest-all"
-    testImplementation("io.dropwizard:dropwizard-core") { exclude module: 'metrics-core' }
-    testImplementation("io.dropwizard:dropwizard-testing") { exclude module: 'metrics-core' }
-    testImplementation "io.dropwizard.metrics:metrics-core"
-    testImplementation "junit:junit"
+    testImplementation "org.assertj:assertj-core"
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
 
     annotationProcessor "org.immutables:value"
     compileOnly 'org.immutables:value::annotations'
 }
 
+moduleJvmArgs {
+    // This opens exists to unblock potential failures which occur when Conscrypt is used with a non-Conscrypt
+    // trust-manager. It's arguable whether this is the correct place for the setting to live, however this
+    // provides a wide net to prevent runtime failures.
+    opens 'java.base/java.net'
+}
+
+
 task generateCerts(type:Exec) {
   workingDir './src/test/resources'
   commandLine './certSetup.sh', '-f'
-}
-
-// requires java 11
-task regenerateCAs(type: Exec) {
-    outputs.cacheIf { false }
-    commandLine 'bash', '-c', '$JAVA_HOME/bin/keytool -list -cacerts -rfc'
-    def outputStream = new ByteArrayOutputStream();
-    doFirst {
-        standardOutput outputStream
-    }
-    doLast {
-        def normalizedOutput = outputStream.toString(StandardCharsets.UTF_8).replaceAll("\\r\\n", "\n")
-        file("src/main/resources/ca-certificates.crt").newWriter().withWriter { w ->
-            w << normalizedOutput
-        }
-        if (System.env.CIRCLE_ARTIFACTS) {
-            file("${System.env.CIRCLE_ARTIFACTS}/ca-certificates.crt") << normalizedOutput
-        }
-    }
-}
-
-task checkCAsNeedUpdating(type: Exec, dependsOn: regenerateCAs) {
-    commandLine 'git', 'diff', '--quiet', 'HEAD', 'src/main/resources/ca-certificates.crt'
-}
-
-if (System.getenv().containsKey("CI")) {
-    tasks.test.dependsOn checkCAsNeedUpdating
 }
 
 tasks.test.dependsOn(generateCerts)

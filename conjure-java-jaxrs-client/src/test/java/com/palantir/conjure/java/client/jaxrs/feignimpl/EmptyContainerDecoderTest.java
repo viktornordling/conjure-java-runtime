@@ -26,13 +26,14 @@ import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import feign.Response;
 import feign.codec.Decoder;
+import jakarta.ws.rs.core.MediaType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
@@ -44,13 +45,12 @@ import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
-import javax.annotation.Generated;
-import javax.ws.rs.core.MediaType;
-import org.junit.Test;
+import javax.annotation.processing.Generated;
+import org.junit.jupiter.api.Test;
 
 public class EmptyContainerDecoderTest {
 
-    private static final ObjectMapper mapper = ObjectMappers.newClientObjectMapper();
+    private static final JsonMapper mapper = ObjectMappers.newClientJsonMapper();
     private static final Response HTTP_204 = Response.create(204, "No Content", Collections.emptyMap(), new byte[] {});
     private final Decoder delegate = mock(Decoder.class);
     private final EmptyContainerDecoder emptyContainerDecoder = new EmptyContainerDecoder(mapper, delegate);

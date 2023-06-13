@@ -16,7 +16,7 @@
 
 package com.palantir.conjure.java.okhttp;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.common.io.CharStreams;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -32,14 +32,13 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Optional;
-import javax.ws.rs.core.MediaType;
 import okhttp3.Response;
 
 enum RemoteExceptionResponseHandler implements ResponseHandler<RemoteException> {
     INSTANCE;
 
     private static final SafeLogger log = SafeLoggerFactory.get(RemoteExceptionResponseHandler.class);
-    private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
+    private static final JsonMapper MAPPER = ObjectMappers.newClientJsonMapper();
 
     @Override
     public Optional<RemoteException> handle(Response response) {
@@ -51,7 +50,7 @@ enum RemoteExceptionResponseHandler implements ResponseHandler<RemoteException> 
         }
 
         Collection<String> contentTypes = response.headers("Content-Type");
-        if (contentTypes.contains(MediaType.APPLICATION_JSON)
+        if (contentTypes.contains("application/json")
                 && !response.request().method().equals("HEAD")) {
             final String body;
             try {

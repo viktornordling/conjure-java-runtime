@@ -18,28 +18,32 @@ package com.palantir.conjure.java.client.jaxrs;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.palantir.conjure.java.client.jaxrs.ExtensionsWrapper.BeforeAndAfter;
 import com.palantir.conjure.java.okhttp.HostMetricsRegistry;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.QueryParam;
 import java.util.Arrays;
 import java.util.List;
-import javax.ws.rs.GET;
-import javax.ws.rs.Path;
-import javax.ws.rs.QueryParam;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public final class JaxRsClientQueryParamHandlingTest extends TestBase {
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
+    @RegisterExtension
+    public final BeforeAndAfter<MockWebServer> serverResource = ExtensionsWrapper.toExtension(new MockWebServer());
+
+    MockWebServer server;
 
     private Service proxy;
 
-    @Before
+    @BeforeEach
     public void before() {
+        this.server = serverResource.getResource();
         proxy = JaxRsClient.create(
                 Service.class,
                 AGENT,

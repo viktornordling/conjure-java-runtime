@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.ErrorType;
@@ -29,30 +29,33 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.logsafe.SafeArg;
+import jakarta.ws.rs.ClientErrorException;
+import jakarta.ws.rs.NotAuthorizedException;
+import jakarta.ws.rs.ServerErrorException;
+import jakarta.ws.rs.WebApplicationException;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Optional;
 import javax.annotation.CheckForNull;
-import javax.ws.rs.ClientErrorException;
-import javax.ws.rs.NotAuthorizedException;
-import javax.ws.rs.ServerErrorException;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.ResponseBody;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public final class RemoteExceptionResponseHandlerTest {
 
     private static final String message = "hello";
     private static final int STATUS_500 = 500;
 
-    private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();
+    private static final JsonMapper SERVER_MAPPER = ObjectMappers.newServerJsonMapper();
 
     private static final Request request =
             new Request.Builder().url("http://url").build();
@@ -126,7 +129,7 @@ public final class RemoteExceptionResponseHandlerTest {
                             + " ("
                             + ErrorType.FAILED_PRECONDITION.name()
                             + ") with instance ID "
-                            + SERVICE_EXCEPTION.getErrorInstanceId());
+                            + SERVICE_EXCEPTION.getErrorInstanceId() + ": {key=value}");
         }
     }
 
@@ -140,7 +143,7 @@ public final class RemoteExceptionResponseHandlerTest {
         assertThat(exception.getError().errorCode()).isEqualTo(NotAuthorizedException.class.getName());
         assertThat(exception.getError().errorName()).isEqualTo(message);
         assertThat(exception.getMessage())
-                .isEqualTo("RemoteException: javax.ws.rs.NotAuthorizedException ("
+                .isEqualTo("RemoteException: jakarta.ws.rs.NotAuthorizedException ("
                         + message
                         + ") with instance ID "
                         + exception.getError().errorInstanceId());

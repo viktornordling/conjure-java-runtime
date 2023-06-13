@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatIOException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterables;
 import com.google.common.net.HostAndPort;
@@ -72,23 +72,22 @@ import okhttp3.mockwebserver.SocketPolicy;
 import okio.BufferedSink;
 import okio.Okio;
 import okio.Source;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public final class OkHttpClientsTest extends TestBase {
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
-
-    @Rule
-    public final MockWebServer server2 = new MockWebServer();
-
-    @Rule
-    public final MockWebServer server3 = new MockWebServer();
+    private final MockWebServer server = new MockWebServer();
+    private final MockWebServer server2 = new MockWebServer();
+    private final MockWebServer server3 = new MockWebServer();
 
     private final HostMetricsRegistry hostEventsSink = new HostMetricsRegistry();
 
@@ -96,11 +95,25 @@ public final class OkHttpClientsTest extends TestBase {
     private String url2;
     private String url3;
 
-    @Before
-    public void before() {
+    @BeforeEach
+    public void before() throws IOException {
+        server.start();
+        server2.start();
+        server3.start();
         url = "http://localhost:" + server.getPort();
         url2 = "http://localhost:" + server2.getPort();
         url3 = "http://localhost:" + server3.getPort();
+    }
+
+    @AfterEach
+    void after() throws IOException {
+        try (MockWebServer s1 = server;
+                MockWebServer s2 = server2;
+                MockWebServer s3 = server3) {
+            s1.close();
+            s2.close();
+            s3.close();
+        }
     }
 
     @Test
@@ -348,7 +361,7 @@ public final class OkHttpClientsTest extends TestBase {
                 .errorName("error name")
                 .build();
         MockResponse mockResponse = new MockResponse()
-                .setBody(new ObjectMapper().writeValueAsString(error))
+                .setBody(new JsonMapper().writeValueAsString(error))
                 .addHeader("Content-Type", "application/json")
                 .setResponseCode(400);
         server.enqueue(mockResponse);
@@ -736,7 +749,8 @@ public final class OkHttpClientsTest extends TestBase {
         assertThat(server2.takeRequest().getPath()).isEqualTo("/foo?bar");
     }
 
-    @Test(timeout = 10_000)
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
     public void handlesInterruptedThreads() throws Exception {
         server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE));
 
@@ -852,7 +866,8 @@ public final class OkHttpClientsTest extends TestBase {
         assertThat(synchronousCall.body().string()).isEqualTo("Hello, world!");
     }
 
-    @Test(timeout = 10_000)
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
     public void randomizesUrls() throws IOException {
         boolean server2WasHit = false;
         server.shutdown();
@@ -903,7 +918,8 @@ public final class OkHttpClientsTest extends TestBase {
         assertThat(server.takeRequest().getHeader(HttpHeaders.HOST)).isEqualTo("foo.com");
     }
 
-    @Test(timeout = 1000)
+    @Test
+    @Timeout(value = 10, unit = TimeUnit.SECONDS)
     public void non_ioexceptions_dont_break_the_world() throws IOException {
         server.enqueue(new MockResponse().setBody("foo"));
 

@@ -31,13 +31,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class NeverReturnNullDecoderTest extends TestBase {
 
     private final Map<String, Collection<String>> headers = new HashMap<>();
     private final Decoder textDelegateDecoder =
-            new NeverReturnNullDecoder(new JacksonDecoder(ObjectMappers.newClientObjectMapper()));
+            new NeverReturnNullDecoder(new JacksonDecoder(ObjectMappers.newClientJsonMapper()));
 
     @Test
     public void throws_nullpointerexception_when_body_is_null() {
